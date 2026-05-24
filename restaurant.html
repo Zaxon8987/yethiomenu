@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Restaurant Menu â€” YeEthioMenu</title>
+  <link rel="manifest" href="manifest.json">
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="/" class="logo">Ye<span>Ethio</span>Menu</a>
+      <div style="display:flex;gap:8px;align-items:center">
+        <button id="langToggle" class="btn btn-outline btn-sm" onclick="toggleLang()" style="font-size:0.85rem">áŠ áˆ›</button>
+        <a href="/customer-dashboard.html" class="btn btn-outline btn-sm">ðŸ‘¤</a>
+        <a href="/" class="btn btn-outline btn-sm" data-i18n="back">â† Back</a>
+      </div>
+    </div>
+  </header>
+
+  <div class="page-header" id="restaurantHeader">
+    <div class="container">
+      <div class="loading" data-i18n="loading">Loading restaurant...</div>
+    </div>
+  </div>
+
+  <!-- Photo Gallery -->
+  <div id="photoGallery" style="display:none;background:var(--dark);overflow-x:auto;white-space:nowrap;padding:12px 0">
+    <div class="container" id="photoContainer"></div>
+  </div>
+
+  <!-- Ratings Summary -->
+  <div class="container" id="ratingsSummary" style="display:none;margin-top:16px"></div>
+
+  <main class="container">
+    <div class="admin-header" style="margin-bottom:8px">
+      <h2 data-i18n="menu">ðŸ“‹ Menu</h2>
+      <a href="/order-status.html" class="btn btn-outline btn-sm" style="border-color:var(--green);color:var(--green)" data-i18n="trackOrder">ðŸ” Track Order</a>
+    </div>
+
+    <!-- Dish Search within restaurant -->
+    <div class="search-bar" style="margin-bottom:16px">
+      <input type="text" id="dishSearch" data-i18n-placeholder="searchDish" placeholder="Search for a dish..." oninput="filterDishSearch()">
+    </div>
+
+    <div id="menuContent">
+      <div class="loading" data-i18n="loading">Loading menu...</div>
+    </div>
+
+    <!-- Reviews Section -->
+    <div style="margin-top:32px;border-top:2px solid #eee;padding-top:20px">
+      <div class="admin-header">
+        <h2 data-i18n="rating">â­ Reviews</h2>
+        <button class="btn btn-primary btn-sm" onclick="showReviewModal()" data-i18n="writeReview">Write a Review</button>
+      </div>
+      <div id="reviewsList"><div class="loading" data-i18n="loading">Loading reviews...</div></div>
+    </div>
+  </main>
+
+  <!-- Order Modal -->
+  <div class="modal-overlay" id="orderModal">
+    <div class="modal">
+      <h2 data-i18n="placeOrder">Place Your Order</h2>
+      <div id="orderItems" class="order-items"></div>
+      <div class="total" id="orderTotal">Total: 0 ETB</div>
+      <div class="form-group">
+        <label data-i18n="customerName">Your Name</label>
+        <input type="text" id="customerName" placeholder="Full name" required>
+      </div>
+      <div class="form-group">
+        <label data-i18n="customerPhone">Phone Number</label>
+        <input type="tel" id="customerPhone" placeholder="0911 123 456" required>
+      </div>
+      <div class="form-group">
+        <label data-i18n="note">Note (optional)</label>
+        <textarea id="orderNote" data-i18n-placeholder="notePlaceholder" placeholder="Any special requests..." rows="2"></textarea>
+      </div>
+      <button class="btn btn-primary" style="width:100%;margin-bottom:8px" onclick="submitOrder()">ðŸ“¤ <span data-i18n="sendOrder">Send Order</span></button>
+      <!-- Telebirr placeholder -->
+      <button class="btn btn-yellow" style="width:100%;margin-bottom:8px" onclick="payWithTelebirr()" data-i18n="payWithTelebirr">ðŸ’° Pay with Telebirr</button>
+      <button class="btn" style="width:100%;background:#eee" onclick="closeOrderModal()" data-i18n="cancel">Cancel</button>
+      <div id="orderError" class="error-msg" style="display:none;margin-top:12px"></div>
+    </div>
+  </div>
+
+  <!-- Review Modal -->
+  <div class="modal-overlay" id="reviewModal">
+    <div class="modal">
+      <h2 data-i18n="writeReview">Write a Review</h2>
+      <div class="form-group">
+        <label data-i18n="customerName">Your Name</label>
+        <input type="text" id="reviewName" placeholder="Full name" required>
+      </div>
+      <div class="form-group">
+        <label data-i18n="rating">Rating</label>
+        <select id="reviewRating" style="width:100%;padding:10px;border:2px solid #e0e0e0;border-radius:6px;font-size:0.95rem">
+          <option value="5">â­â­â­â­â­ - Excellent</option>
+          <option value="4">â­â­â­â­ - Good</option>
+          <option value="3">â­â­â­ - Average</option>
+          <option value="2">â­â­ - Poor</option>
+          <option value="1">â­ - Terrible</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label data-i18n="note">Comment</label>
+        <textarea id="reviewComment" placeholder="Share your experience..." rows="3" style="width:100%;padding:10px;border:2px solid #e0e0e0;border-radius:6px;font-size:0.95rem"></textarea>
+      </div>
+      <button class="btn btn-primary" style="width:100%" onclick="submitReview()" data-i18n="submitReview">Submit Review</button>
+      <button class="btn" style="width:100%;margin-top:8px;background:#eee" onclick="closeReviewModal()" data-i18n="cancel">Cancel</button>
+    </div>
+  </div>
+
+  <script src="config.js"></script>
+  <script src="script.js"></script>
+  <script src="i18n.js"></script>
+  <script>
+    let supabase;
+    let restaurantId;
+    let currentRestaurant;
+    let cart = {};
+
+    function initSupabase() {
+      if (!SUPABASE_URL || SUPABASE_URL === 'YOUR_SUPABASE_URL') {
+        document.getElementById('restaurantHeader').innerHTML =
+          '<div class="container"><h1 data-i18n="setupRequired">âš™ï¸ Setup Required</h1><p data-i18n="configureSupabase">Configure Supabase in config.js</p></div>';
+        document.getElementById('menuContent').innerHTML = '';
+        return;
+      }
+      supabase = supabaseJs.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+      const params = new URLSearchParams(window.location.search);
+      restaurantId = params.get('id');
+      if (restaurantId) {
+        loadRestaurant(restaurantId);
+        loadMenu(restaurantId);
+        loadReviews(restaurantId);
+      } else {
+        document.getElementById('restaurantHeader').innerHTML =
+          '<div class="container"><h1>Restaurant not found</h1></div>';
+        document.getElementById('menuContent').innerHTML = '';
+      }
+    }
+
+    async function loadRestaurant(id) {
+      const { data, error } = await supabase.from('restaurants')
+        .select('*, cities(name)')
+        .eq('id', id)
+        .single();
+      if (error) { console.error(error); return; }
+      currentRestaurant = data;
+
+      const header = document.getElementById('restaurantHeader');
+      const photoHtml = data.photo_url
+        ? `<img src="${data.photo_url}" style="width:100%;max-height:300px;object-fit:cover;border-radius:12px;margin-bottom:12px">`
+        : '';
+
+      header.innerHTML = `
+        <div class="container">
+          ${photoHtml}
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:8px">
+            <div>
+              <h1>${data.name}</h1>
+              <div class="info">
+                ${data.cities?.name ? 'ðŸ“ ' + data.cities.name : ''}
+                ${data.address ? ' â€” ðŸ  ' + data.address : ''}
+                ${data.phone ? '<br>ðŸ“ž ' + data.phone : ''}
+              </div>
+            </div>
+            <div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px">
+              <span class="status ${data.is_open ? 'badge-open' : 'badge-closed'}" style="font-size:1rem;padding:6px 16px">
+                ${data.is_open ? 'ðŸŸ¢ ' + t('open') : 'ðŸ”´ ' + t('closed')}
+              </span>
+              <button class="btn btn-sm" style="background:#ffebee;color:var(--red);border:1px solid var(--red)" onclick="toggleFavorite()" id="favBtn">â¤ï¸ Save</button>
+            </div>
+          </div>
+        </div>
+      `;
+
+      if (data.photo_url) {
+        document.getElementById('photoGallery').style.display = 'block';
+        document.getElementById('photoContainer').innerHTML = `
+          <img src="${data.photo_url}" style="height:200px;border-radius:8px;margin-right:8px">
+        `;
+      }
+
+      checkFavorite();
+    }
+
+    async function checkFavorite() {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return;
+      const { data } = await supabase.from('favorites')
+        .select('id')
+        .eq('customer_id', session.user.id)
+        .eq('restaurant_id', parseInt(restaurantId))
+        .maybeSingle();
+      const btn = document.getElementById('favBtn');
+      if (btn) {
+        if (data) {
+          btn.textContent = 'â¤ï¸ Saved';
+          btn.style.background = '#fce4ec';
+        } else {
+          btn.textContent = 'ðŸ¤ Save';
+          btn.style.background = '#ffebee';
+        }
+      }
+    }
+
+    async function toggleFavorite() {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) { alert('Please login to save favorites'); window.location.href = '/customer-login.html'; return; }
+      const { data: existing } = await supabase.from('favorites')
+        .select('id').eq('customer_id', session.user.id).eq('restaurant_id', parseInt(restaurantId)).maybeSingle();
+      if (existing) {
+        await supabase.from('favorites').delete().eq('id', existing.id);
+      } else {
+        await supabase.from('favorites').insert({ customer_id: session.user.id, restaurant_id: parseInt(restaurantId) });
+      }
+      checkFavorite();
+    }
+
+    async function loadMenu(id) {
+      const { data, error } = await supabase.from('menu_items')
+        .select('*')
+        .eq('restaurant_id', id)
+        .order('category')
+        .order('name');
+      if (error) { console.error(error); return; }
+      renderMenu(data || []);
+    }
+
+    function renderMenu(items) {
+      const container = document.getElementById('menuContent');
+      if (!items.length) {
+        container.innerHTML = '<div class="empty-state"><span class="emoji">ðŸ“‹</span>No menu items yet.</div>';
+        return;
+      }
+
+      window._menuItems = items;
+      let currentCategory = '';
+      let html = '';
+      items.forEach(item => {
+        if (item.category !== currentCategory) {
+          currentCategory = item.category;
+          html += `<div class="menu-category"><h2>${item.category}</h2>`;
+        }
+        html += `
+          <div class="menu-item" data-name="${item.name.toLowerCase()}">
+            <div class="item-info">
+              <div class="item-name">${item.name}</div>
+              ${item.photo_url ? `<img src="${item.photo_url}" style="width:40px;height:40px;border-radius:6px;object-fit:cover;margin-top:4px">` : ''}
+            </div>
+            <div class="item-actions">
+              <span class="item-price">${item.price} ETB</span>
+              ${item.is_available
+                ? `<button class="order-btn" onclick="addToCart(${item.id}, '${item.name.replace(/'/g, "\\'")}', ${item.price})">${t('order')}</button>`
+                : '<span class="sold-out" data-i18n="soldOut">Sold Out</span>'
+              }
+            </div>
+          </div>
+        `;
+      });
+      container.innerHTML = html;
+
+      setTimeout(translatePage, 100);
+    }
+
+    function filterDishSearch() {
+      const q = document.getElementById('dishSearch').value.trim().toLowerCase();
+      document.querySelectorAll('.menu-item').forEach(el => {
+        el.style.display = el.dataset.name.includes(q) ? '' : 'none';
+      });
+      document.querySelectorAll('.menu-category').forEach(cat => {
+        const visible = cat.querySelectorAll('.menu-item[style*="display: none"]').length < cat.querySelectorAll('.menu-item').length;
+        cat.style.display = visible ? '' : 'none';
+      });
+    }
+
+    async function loadReviews(restId) {
+      const { data, error } = await supabase.from('reviews')
+        .select('*')
+        .eq('restaurant_id', restId)
+        .order('created_at', { ascending: false });
+
+      const list = document.getElementById('reviewsList');
+      if (!data || !data.length) {
+        list.innerHTML = '<div class="empty-state"><span class="emoji">ðŸ’¬</span>No reviews yet. Be the first!</div>';
+        return;
+      }
+
+      const avg = (data.reduce((s, r) => s + r.rating, 0) / data.length).toFixed(1);
+      document.getElementById('ratingsSummary').style.display = 'block';
+      document.getElementById('ratingsSummary').innerHTML = `
+        <div style="background:white;border-radius:12px;padding:16px;box-shadow:0 1px 6px rgba(0,0,0,0.08);display:flex;align-items:center;gap:16px">
+          <div style="text-align:center">
+            <div style="font-size:2rem;font-weight:800;color:var(--green)">${avg}</div>
+            <div style="font-size:0.85rem;color:var(--gray)">${data.length} reviews</div>
+          </div>
+          <div style="flex:1">
+            ${[5,4,3,2,1].map(star => {
+              const count = data.filter(r => r.rating === star).length;
+              const pct = (count / data.length * 100);
+              return `<div style="display:flex;align-items:center;gap:8px;font-size:0.85rem"><span>${star}â˜…</span><div style="flex:1;height:8px;background:#eee;border-radius:4px"><div style="height:100%;width:${pct}%;background:var(--yellow);border-radius:4px"></div></div><span>${count}</span></div>`
+            }).join('')}
+          </div>
+        </div>
+      `;
+
+      list.innerHTML = data.map(r => `
+        <div style="background:white;border-radius:8px;padding:12px;margin-bottom:8px;box-shadow:0 1px 4px rgba(0,0,0,0.06)">
+          <div style="display:flex;justify-content:space-between">
+            <span style="font-weight:600">${r.customer_name}</span>
+            <span style="color:var(--yellow)">${'â˜…'.repeat(r.rating)}${'â˜†'.repeat(5-r.rating)}</span>
+          </div>
+          ${r.comment ? '<div style="color:var(--gray);margin-top:4px;font-size:0.9rem">' + r.comment + '</div>' : ''}
+          <div style="font-size:0.8rem;color:#aaa;margin-top:4px">${formatTime(r.created_at)}</div>
+        </div>
+      `).join('');
+    }
+
+    // Order functions
+    function addToCart(id, name, price) {
+      if (!currentRestaurant || !currentRestaurant.is_open) { alert(t('currentlyClosed')); return; }
+      cart[id] = cart[id] || { name, price, qty: 0 };
+      cart[id].qty += 1;
+      showOrderModal();
+    }
+
+    function showOrderModal() {
+      const list = document.getElementById('orderItems');
+      let html = '<h3 style="font-size:0.95rem;margin-bottom:8px">' + t('yourOrder') + '</h3>';
+      let total = 0;
+      Object.keys(cart).forEach(id => {
+        const item = cart[id];
+        total += item.price * item.qty;
+        html += `<div class="order-item"><span>${item.name} x${item.qty}</span><span>${item.price * item.qty} ETB</span></div>`;
+      });
+      list.innerHTML = html;
+      document.getElementById('orderTotal').textContent = t('total') + ': ' + total + ' ETB';
+      document.getElementById('orderModal').classList.add('active');
+    }
+
+    function closeOrderModal() { document.getElementById('orderModal').classList.remove('active'); }
+
+    async function submitOrder() {
+      const name = document.getElementById('customerName').value.trim();
+      const phone = document.getElementById('customerPhone').value.trim();
+      const note = document.getElementById('orderNote').value.trim();
+      const err = document.getElementById('orderError');
+      if (!name) { showOrderError('Please enter your name.'); return; }
+      if (!phone) { showOrderError('Please enter your phone number.'); return; }
+
+      const items = Object.keys(cart).map(id => ({
+        id: parseInt(id), name: cart[id].name, price: cart[id].price, qty: cart[id].qty
+      }));
+      const trackingCode = 'YM' + Date.now().toString(36).toUpperCase();
+
+      const { error } = await supabase.from('orders').insert({
+        restaurant_id: parseInt(restaurantId),
+        customer_name: name, customer_phone: phone,
+        items: items, note: note, status: 'new',
+        tracking_code: trackingCode
+      }).select();
+
+      if (error) { showOrderError('Failed to place order.'); console.error(error); return; }
+
+      cart = {}; closeOrderModal();
+      alert(t('orderSuccess') + '\nTracking Code: ' + trackingCode);
+      document.getElementById('customerName').value = '';
+      document.getElementById('customerPhone').value = '';
+      document.getElementById('orderNote').value = '';
+    }
+
+    function showOrderError(msg) {
+      const el = document.getElementById('orderError');
+      el.textContent = msg; el.style.display = 'block';
+      setTimeout(() => el.style.display = 'none', 3000);
+    }
+
+    function payWithTelebirr() {
+      alert('ðŸ’° Telebirr payment coming soon!\n\nFor now, pay on delivery when the restaurant calls you.');
+    }
+
+    // Review functions
+    function showReviewModal() { document.getElementById('reviewModal').classList.add('active'); }
+    function closeReviewModal() { document.getElementById('reviewModal').classList.remove('active'); }
+
+    async function submitReview() {
+      const name = document.getElementById('reviewName').value.trim();
+      const rating = parseInt(document.getElementById('reviewRating').value);
+      const comment = document.getElementById('reviewComment').value.trim();
+      if (!name) { alert('Please enter your name.'); return; }
+
+      const { error } = await supabase.from('reviews').insert({
+        restaurant_id: parseInt(restaurantId),
+        customer_name: name, rating, comment
+      });
+      if (error) { alert('Error: ' + error.message); return; }
+      closeReviewModal();
+      alert('âœ… Review submitted!');
+      loadReviews(restaurantId);
+      document.getElementById('reviewName').value = '';
+      document.getElementById('reviewComment').value = '';
+    }
+
+    initSupabase();
+  </script>
+</body>
+</html>
