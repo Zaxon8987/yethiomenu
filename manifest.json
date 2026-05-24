@@ -1,0 +1,28 @@
+{
+  "name": "YeEthioMenu",
+  "short_name": "YeEthioMenu",
+  "description": "Find restaurants, browse menus, and order food in Ethiopia",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#078930",
+  "theme_color": "#078930",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 48'%3E%3Crect width='48' height='48' rx='8' fill='%23078930'/%3E%3Ctext x='24' y='32' text-anchor='middle' font-size='24'%3EðŸ½%3C/text%3E%3C/svg%3E",
+      "sizes": "48x48",
+      "type": "image/svg+xml"
+    },
+    {
+      "src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'%3E%3Crect width='192' height='192' rx='16' fill='%23078930'/%3E%3Ctext x='96' y='128' text-anchor='middle' font-size='96'%3EðŸ½%3C/text%3E%3C/svg%3E",
+      "sizes": "192x192",
+      "type": "image/svg+xml"
+    },
+    {
+      "src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='32' fill='%23078930'/%3E%3Ctext x='256' y='340' text-anchor='middle' font-size='256'%3EðŸ½%3C/text%3E%3C/svg%3E",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
