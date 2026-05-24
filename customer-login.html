@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Customer Login â€” YeEthioMenu</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="/" class="logo">Ye<span>Ethio</span>Menu</a>
+      <a href="/" class="btn btn-outline btn-sm" data-i18n="back">â† Back</a>
+    </div>
+  </header>
+
+  <div class="auth-form" id="authForm">
+    <h2>ðŸ‘¤ <span data-i18n="customerLogin">Customer Login</span></h2>
+    <div id="authMessage"></div>
+    <div class="form-group">
+      <label data-i18n="email">Email</label>
+      <input type="email" id="email" placeholder="your@email.com" required>
+    </div>
+    <div class="form-group">
+      <label data-i18n="password">Password</label>
+      <input type="password" id="password" placeholder="Enter password" required>
+    </div>
+    <button class="btn btn-primary" onclick="login()" style="width:100%"><span data-i18n="signIn">Sign In</span></button>
+    <div class="switch">
+      <span data-i18n="noAccount">Don't have an account?</span> <a onclick="showRegister()"><span data-i18n="registerHere">Register here</span></a>
+    </div>
+  </div>
+
+  <script src="config.js"></script>
+  <script src="i18n.js"></script>
+  <script>
+    let supabase;
+
+    function init() {
+      if (!SUPABASE_URL || SUPABASE_URL === 'YOUR_SUPABASE_URL') {
+        document.getElementById('authForm').innerHTML = '<h2>âš™ï¸ <span data-i18n="setupRequired">Setup Required</span></h2><p data-i18n="configureSupabase">Configure Supabase in config.js first.</p>';
+        return;
+      }
+      supabase = supabaseJs.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+      supabase.auth.onAuthStateChange((event, session) => {
+        if (session) window.location.href = '/customer-dashboard.html';
+      });
+      supabase.auth.getSession().then(({ data }) => {
+        if (data.session) window.location.href = '/customer-dashboard.html';
+      });
+    }
+
+    async function login() {
+      const email = document.getElementById('email').value.trim();
+      const password = document.getElementById('password').value;
+      const msg = document.getElementById('authMessage');
+      if (!email || !password) {
+        msg.innerHTML = '<div class="error-msg">Please fill in all fields.</div>';
+        return;
+      }
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) msg.innerHTML = '<div class="error-msg">' + error.message + '</div>';
+    }
+
+    async function showRegister() {
+      const email = document.getElementById('email').value.trim();
+      const password = document.getElementById('password').value;
+      const msg = document.getElementById('authMessage');
+      if (!email || !password || password.length < 6) {
+        msg.innerHTML = '<div class="error-msg">Enter email and password (min 6 chars) to register.</div>';
+        return;
+      }
+      const { error } = await supabase.auth.signUp({ email, password });
+      if (error) {
+        msg.innerHTML = '<div class="error-msg">' + error.message + '</div>';
+      } else {
+        msg.innerHTML = '<div class="success-msg">Account created! You can now sign in.</div>';
+      }
+    }
+
+    init();
+  </script>
+</body>
+</html>
