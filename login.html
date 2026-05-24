@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Login â€” YeEthioMenu</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="/" class="logo">Ye<span>Ethio</span>Menu</a>
+      <a href="/" class="btn btn-outline btn-sm">â† Back to Site</a>
+    </div>
+  </header>
+
+  <div class="auth-form" id="authForm">
+    <h2>ðŸ½ï¸ Restaurant Owner Login</h2>
+    <div id="authMessage"></div>
+    <div class="form-group">
+      <label>Email</label>
+      <input type="email" id="email" placeholder="your@email.com" required>
+    </div>
+    <div class="form-group">
+      <label>Password</label>
+      <input type="password" id="password" placeholder="Enter password" required>
+    </div>
+    <button class="btn btn-primary" onclick="login()">Sign In</button>
+    <div class="switch">
+      Don't have an account? <a onclick="showRegister()">Register here</a>
+    </div>
+  </div>
+
+  <script src="config.js"></script>
+  <script>
+    let supabase;
+    let mode = 'login';
+
+    function initSupabase() {
+      if (!SUPABASE_URL || SUPABASE_URL === 'YOUR_SUPABASE_URL') {
+        document.getElementById('authForm').innerHTML =
+          '<h2>âš™ï¸ Setup Required</h2><p>Configure Supabase in config.js first.</p>';
+        return;
+      }
+      supabase = supabaseJs.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+      supabase.auth.onAuthStateChange((event, session) => {
+        if (session) window.location.href = '/admin.html';
+      });
+
+      supabase.auth.getSession().then(({ data }) => {
+        if (data.session) window.location.href = '/admin.html';
+      });
+    }
+
+    async function login() {
+      const email = document.getElementById('email').value.trim();
+      const password = document.getElementById('password').value;
+      const msg = document.getElementById('authMessage');
+
+      if (!email || !password) {
+        msg.innerHTML = '<div class="error-msg">Please fill in all fields.</div>';
+        return;
+      }
+
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) {
+        msg.innerHTML = '<div class="error-msg">' + error.message + '</div>';
+      }
+    }
+
+    async function showRegister() {
+      const email = document.getElementById('email').value.trim();
+      const password = document.getElementById('password').value;
+      const msg = document.getElementById('authMessage');
+
+      if (!email || !password || password.length < 6) {
+        msg.innerHTML = '<div class="error-msg">Enter email and password (min 6 chars) to register.</div>';
+        return;
+      }
+
+      const { data, error } = await supabase.auth.signUp({ email, password });
+      if (error) {
+        msg.innerHTML = '<div class="error-msg">' + error.message + '</div>';
+      } else {
+        msg.innerHTML = '<div class="success-msg">Account created! Check your email to confirm. Then sign in.</div>';
+      }
+    }
+
+    initSupabase();
+  </script>
+</body>
+</html>
