@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin Dashboard â€” YeEthioMenu</title>
+  <link rel="manifest" href="manifest.json">
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="/" class="logo">Ye<span>Ethio</span>Menu</a>
+      <div style="display:flex;gap:8px;align-items:center">
+        <span id="restaurantName" style="font-size:0.9rem;color:rgba(255,255,255,0.8);align-self:center"></span>
+        <button class="btn btn-outline btn-sm" onclick="logout()">Logout</button>
+      </div>
+    </div>
+  </header>
+
+  <main class="container" style="padding-top:20px">
+    <div id="noRestaurant" style="display:none">
+      <div class="auth-form" style="margin-top:0">
+        <h2>ðŸª Register Your Restaurant</h2>
+        <div class="form-group"><label>Restaurant Name</label><input type="text" id="newRestName"></div>
+        <div class="form-group"><label>City</label><select id="newRestCity"></select></div>
+        <div class="form-group"><label>Phone</label><input type="text" id="newRestPhone"></div>
+        <div class="form-group"><label>Address</label><input type="text" id="newRestAddress"></div>
+        <button class="btn btn-primary" style="width:100%" onclick="registerRestaurant()">Create Restaurant Page</button>
+        <div id="regError" class="error-msg" style="display:none;margin-top:12px"></div>
+      </div>
+    </div>
+
+    <div id="dashboard" style="display:none">
+      <div class="admin-header">
+        <h2>Dashboard</h2>
+        <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+          <span id="openLabel" style="font-size:0.9rem;font-weight:600"></span>
+          <label class="toggle">
+            <input type="checkbox" id="openToggle" onchange="toggleOpen()"><span class="slider"></span>
+          </label>
+        </div>
+      </div>
+
+      <div class="tabs">
+        <button class="tab active" onclick="switchTab('orders')">ðŸ“‹ Orders</button>
+        <button class="tab" onclick="switchTab('menu')">ðŸ“ Menu</button>
+        <button class="tab" onclick="switchTab('reviews')">â­ Reviews</button>
+        <button class="tab" onclick="switchTab('settings')">âš™ï¸ Settings</button>
+      </div>
+
+      <div class="tab-content active" id="tabOrders">
+        <h3 style="margin-bottom:12px">Orders</h3>
+        <div id="ordersList"><div class="loading">Loading orders...</div></div>
+      </div>
+
+      <div class="tab-content" id="tabMenu">
+        <div class="admin-header" style="margin-bottom:12px">
+          <h3>Menu Items</h3>
+          <button class="btn btn-primary btn-sm" onclick="showAddItem()">+ Add Item</button>
+        </div>
+        <div id="addItemForm" style="display:none" class="add-item-form">
+          <input type="text" id="itemName" class="name" placeholder="Item name">
+          <input type="number" id="itemPrice" class="price" placeholder="Price ETB">
+          <select id="itemCategory">
+            <option value="Breakfast">Breakfast</option>
+            <option value="Lunch">Lunch</option>
+            <option value="Dinner">Dinner</option>
+            <option value="Drinks">Drinks</option>
+            <option value="Dessert">Dessert</option>
+            <option value="General" selected>General</option>
+          </select>
+          <input type="text" id="itemPhoto" class="name" placeholder="Photo URL (optional)">
+          <button class="btn btn-primary btn-sm" onclick="addItem()">Save</button>
+          <button class="btn btn-sm" style="background:#eee" onclick="hideAddItem()">Cancel</button>
+        </div>
+        <div id="menuList" class="menu-editor"><div class="loading">Loading menu...</div></div>
+      </div>
+
+      <div class="tab-content" id="tabReviews">
+        <h3 style="margin-bottom:12px">Customer Reviews</h3>
+        <div id="reviewsList"><div class="loading">Loading reviews...</div></div>
+      </div>
+
+      <div class="tab-content" id="tabSettings">
+        <h3 style="margin-bottom:12px">Restaurant Info</h3>
+        <div class="form-group"><label>Restaurant Name</label><input type="text" id="editName"></div>
+        <div class="form-group"><label>City</label><select id="editCity"></select></div>
+        <div class="form-group"><label>Phone</label><input type="text" id="editPhone"></div>
+        <div class="form-group"><label>Address</label><input type="text" id="editAddress"></div>
+        <div class="form-group"><label>Photo URL</label><input type="text" id="editPhoto" placeholder="https://example.com/photo.jpg"></div>
+        <div class="form-group">
+          <label>â­ Featured Restaurant</label>
+          <div style="display:flex;align-items:center;gap:12px">
+            <label class="toggle">
+              <input type="checkbox" id="featuredToggle" onchange="toggleFeatured()"><span class="slider"></span>
+            </label>
+            <span id="featuredLabel" style="font-size:0.9rem;color:gray">Not featured</span>
+          </div>
+        </div>
+        <button class="btn btn-primary" onclick="saveSettings()">ðŸ’¾ Save Changes</button>
+      </div>
+    </div>
+  </main>
+
+  <script src="config.js"></script>
+  <script src="admin.js"></script>
+</body>
+</html>
