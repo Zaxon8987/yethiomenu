@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>YeEthioMenu â€” Find Restaurants & Menus in Ethiopia</title>
+  <link rel="manifest" href="manifest.json">
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="/" class="logo">Ye<span>Ethio</span>Menu</a>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <button id="langToggle" class="btn btn-outline btn-sm" onclick="toggleLang()" style="font-size:0.85rem">áŠ áˆ›</button>
+        <a href="/customer-login.html" class="btn btn-outline btn-sm" style="font-size:0.85rem">ðŸ‘¤</a>
+        <a href="/login.html" class="btn btn-outline btn-sm" data-i18n="login">Restaurant Login</a>
+      </div>
+    </div>
+  </header>
+
+  <section class="hero">
+    <div class="container">
+      <h1 data-i18n="tagline">Find Menus & Order from Ethiopian Restaurants</h1>
+      <p data-i18n="subtitle">Browse restaurants, see prices, and place orders â€” all in one place.</p>
+
+      <div class="search-bar">
+        <input type="text" id="searchInput" data-i18n-placeholder="searchPlaceholder" placeholder="Search for a restaurant or dish..." oninput="debounceSearch()">
+        <button class="btn btn-primary" onclick="executeSearch()" data-i18n="search">Search</button>
+      </div>
+
+      <h2 class="section-title" style="margin-bottom:12px" data-i18n="selectCity">Select Your City</h2>
+      <div class="city-grid" id="cityGrid">
+        <div class="loading" data-i18n="loading">Loading cities...</div>
+      </div>
+    </div>
+  </section>
+
+  <main class="container">
+    <!-- Promoted Banner -->
+    <div id="promotedBanner" style="display:none;margin-bottom:24px">
+      <div style="background:linear-gradient(135deg,var(--yellow),#f5a623);border-radius:12px;padding:16px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+        <div>
+          <span style="font-weight:800;font-size:1.1rem" data-i18n="todaySpecial">â­ Today's Special</span>
+          <span id="promotedName" style="font-size:1.2rem;font-weight:700;margin-left:8px"></span>
+        </div>
+        <a id="promotedLink" class="btn" style="background:var(--dark);color:white" data-i18n="order">Order Now</a>
+      </div>
+    </div>
+
+    <div id="resultsSection">
+      <h2 class="section-title" id="resultsTitle" data-i18n="featuredRestaurants">ðŸ½ï¸ Featured Restaurants</h2>
+      <div class="restaurant-grid" id="restaurantGrid">
+        <div class="loading" data-i18n="loading">Loading restaurants...</div>
+      </div>
+    </div>
+
+    <div id="dishResults" style="display:none;margin-bottom:32px">
+      <h2 class="section-title" id="dishResultsTitle">ðŸ² Dishes</h2>
+      <div id="dishGrid"></div>
+    </div>
+  </main>
+
+  <script src="config.js"></script>
+  <script src="script.js"></script>
+  <script src="i18n.js"></script>
+  <script>
+    let selectedCityId = null;
+    let supabase;
+    let searchTimer;
+
+    function initSupabase() {
+      if (!SUPABASE_URL || SUPABASE_URL === 'YOUR_SUPABASE_URL') {
+        document.getElementById('restaurantGrid').innerHTML =
+          '<div class="empty-state"><span class="emoji">âš™ï¸</span>Please configure Supabase in config.js</div>';
+        document.getElementById('cityGrid').innerHTML = '';
+        document.getElementById('resultsTitle').textContent = 'âš™ï¸ Setup Required';
+        return;
+      }
+      supabase = supabaseJs.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+      loadCities();
+      loadRestaurants();
+      loadPromoted();
+
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/service-worker.js');
+      }
+    }
+
+    async function loadCities() {
+      const { data, error } = await supabase.from('cities').select('*').order('name');
+      if (error) { console.error(error); return; }
+      const grid = document.getElementById('cityGrid');
+
+      const countPromises = data.map(async c => {
+        const { count } = await supabase.from('restaurants')
+          .select('*', { count: 'exact', head: true })
+          .eq('city_id', c.id);
+        return count || 0;
+      });
+      const counts = await Promise.all(countPromises);
+
+      grid.innerHTML = data.map((c, i) => `
+        <div class="city-card" onclick="filterByCity(${c.id})" data-city-id="${c.id}">
+          <span class="name" style="font-size:1.1rem">${c.name}</span>
+          <span class="count">${counts[i]} restaurants</span>
+        </div>
+      `).join('');
+    }
+
+    async function loadPromoted() {
+      const { data } = await supabase.from('restaurants')
+        .select('*').eq('is_featured', true).limit(1);
+      if (data && data.length > 0) {
+        const r = data[0];
+        document.getElementById('promotedBanner').style.display = 'block';
+        document.getElementById('promotedName').textContent = r.name;
+        document.getElementById('promotedLink').href = '/restaurant.html?id=' + r.id;
+      }
+    }
+
+    async function loadRestaurants(cityId) {
+      selectedCityId = cityId || null;
+      let allQuery = supabase.from('restaurants')
+        .select('*, cities!inner(name, slug)')
+        .order('name');
+      if (cityId) allQuery = allQuery.eq('city_id', cityId);
+      const { data } = await allQuery;
+      renderRestaurants(data || []);
+    }
+
+    function renderRestaurants(restaurants) {
+      const grid = document.getElementById('restaurantGrid');
+      const title = document.getElementById('resultsTitle');
+      if (!restaurants.length) {
+        grid.innerHTML = '<div class="empty-state"><span class="emoji">ðŸ½ï¸</span>No restaurants found in this city yet.</div>';
+        return;
+      }
+      title.textContent = selectedCityId ? 'ðŸ½ï¸ Restaurants in this City' : 'ðŸ½ï¸ All Restaurants';
+
+      const featured = restaurants.filter(r => r.is_featured);
+      const regular = restaurants.filter(r => !r.is_featured);
+      const sorted = [...featured, ...regular];
+
+      grid.innerHTML = sorted.map(r => `
+        <a href="/restaurant.html?id=${r.id}" class="restaurant-card">
+          ${r.is_featured ? '<span class="badge badge-featured">â­ Featured</span>' : ''}
+          <span class="badge ${r.is_open ? 'badge-open' : 'badge-closed'}">${r.is_open ? t('open') : t('closed')}</span>
+          <div class="card-body">
+            <h3>${r.name}</h3>
+            <div class="meta">
+              <span>ðŸ“ ${r.cities?.name || ''}</span>
+              ${r.address ? '<span>ðŸ  ' + r.address + '</span>' : ''}
+              ${r.phone ? '<span>ðŸ“ž ' + r.phone + '</span>' : ''}
+            </div>
+          </div>
+          <div class="card-footer">
+            <span>${r.is_open ? 'ðŸŸ¢ ' + t('acceptingOrders') : 'ðŸ”´ ' + t('currentlyClosed')}</span>
+            <span>â†’ ${t('viewMenu')}</span>
+          </div>
+        </a>
+      `).join('');
+
+      updateCityActive();
+    }
+
+    function updateCityActive() {
+      document.querySelectorAll('.city-card').forEach(c => {
+        c.classList.toggle('active', parseInt(c.dataset.cityId) === selectedCityId);
+      });
+    }
+
+    function filterByCity(cityId) {
+      if (selectedCityId === cityId) {
+        selectedCityId = null;
+        loadRestaurants();
+      } else {
+        loadRestaurants(cityId);
+      }
+      document.getElementById('dishResults').style.display = 'none';
+    }
+
+    function debounceSearch() {
+      clearTimeout(searchTimer);
+      searchTimer = setTimeout(executeSearch, 400);
+    }
+
+    async function executeSearch() {
+      const q = document.getElementById('searchInput').value.trim().toLowerCase();
+      const dishResults = document.getElementById('dishResults');
+
+      if (!q) {
+        dishResults.style.display = 'none';
+        loadRestaurants(selectedCityId);
+        return;
+      }
+
+      let dishQuery = supabase.from('menu_items')
+        .select('*, restaurants!inner(id, name, is_open, city_id, cities!inner(name))')
+        .ilike('name', `%${q}%`)
+        .eq('is_available', true);
+
+      if (selectedCityId) dishQuery = dishQuery.eq('restaurants.city_id', selectedCityId);
+      const { data: dishes } = await dishQuery.limit(30);
+
+      let restQuery = supabase.from('restaurants')
+        .select('*, cities!inner(name, slug)')
+        .ilike('name', `%${q}%`);
+      if (selectedCityId) restQuery = restQuery.eq('city_id', selectedCityId);
+      const { data: restResults } = await restQuery;
+
+      const title = document.getElementById('resultsTitle');
+      title.textContent = `ðŸ” Results for "${q}"`;
+      const grid = document.getElementById('restaurantGrid');
+
+      if ((!dishes || !dishes.length) && (!restResults || !restResults.length)) {
+        grid.innerHTML = '<div class="empty-state"><span class="emoji">ðŸ”</span>No results match your search.</div>';
+        dishResults.style.display = 'none';
+        return;
+      }
+
+      dishResults.style.display = 'block';
+      const dishGrid = document.getElementById('dishGrid');
+      dishGrid.style.display = 'grid';
+      dishGrid.style.gridTemplateColumns = 'repeat(auto-fill, minmax(200px, 1fr))';
+      dishGrid.style.gap = '12px';
+
+      if (dishes && dishes.length) {
+        dishGrid.innerHTML = dishes.map(d => `
+          <a href="/restaurant.html?id=${d.restaurant_id}" style="background:white;border-radius:8px;padding:12px;box-shadow:0 1px 6px rgba(0,0,0,0.08);text-decoration:none;color:var(--dark)">
+            <div style="font-weight:600">${d.name}</div>
+            <div style="color:var(--green);font-weight:700">${d.price} ETB</div>
+            <div style="font-size:0.85rem;color:var(--gray)">ðŸª ${d.restaurants?.name || ''}</div>
+            <div style="font-size:0.8rem;color:var(--gray)">ðŸ“ ${d.restaurants?.cities?.name || ''}</div>
+          </a>
+        `).join('');
+      } else {
+        dishGrid.innerHTML = '<div class="empty-state"><span class="emoji">ðŸ”</span>No dishes found</div>';
+      }
+
+      if (restResults && restResults.length) {
+        grid.innerHTML = restResults.map(r => `
+          <a href="/restaurant.html?id=${r.id}" class="restaurant-card">
+            <span class="badge ${r.is_open ? 'badge-open' : 'badge-closed'}">${r.is_open ? t('open') : t('closed')}</span>
+            <div class="card-body">
+              <h3>${r.name}</h3>
+              <div class="meta">
+                <span>ðŸ“ ${r.cities?.name || ''}</span>
+              </div>
+            </div>
+            <div class="card-footer">
+              <span>â†’ ${t('viewMenu')}</span>
+            </div>
+          </a>
+        `).join('');
+      }
+    }
+
+    initSupabase();
+  </script>
+</body>
+</html>
