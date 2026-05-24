@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>My Account â€” YeEthioMenu</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="/" class="logo">Ye<span>Ethio</span>Menu</a>
+      <div style="display:flex;gap:8px">
+        <span id="userEmail" style="font-size:0.9rem;color:rgba(255,255,255,0.8);align-self:center"></span>
+        <button class="btn btn-outline btn-sm" onclick="logout()">Logout</button>
+      </div>
+    </div>
+  </header>
+
+  <main class="container" style="padding-top:20px">
+    <div class="admin-header">
+      <h2 data-i18n="orderHistory">ðŸ‘¤ My Orders</h2>
+    </div>
+
+    <div class="tabs">
+      <button class="tab active" onclick="switchTab('myOrders')">ðŸ“‹ <span data-i18n="orderHistory">My Orders</span></button>
+      <button class="tab" onclick="switchTab('myFavorites')">â¤ï¸ <span data-i18n="favorites">Favorites</span></button>
+      <button class="tab" onclick="switchTab('myProfile')">âš™ï¸ <span data-i18n="settings">Profile</span></button>
+    </div>
+
+    <div class="tab-content active" id="tabMyOrders">
+      <div id="ordersList"><div class="loading" data-i18n="loading">Loading...</div></div>
+    </div>
+
+    <div class="tab-content" id="tabMyFavorites">
+      <div id="favoritesList"><div class="loading" data-i18n="loading">Loading...</div></div>
+    </div>
+
+    <div class="tab-content" id="tabMyProfile">
+      <h3 style="margin-bottom:12px">Profile Settings</h3>
+      <div class="form-group">
+        <label data-i18n="customerName">Your Name</label>
+        <input type="text" id="profileName" placeholder="Full name">
+      </div>
+      <div class="form-group">
+        <label data-i18n="customerPhone">Phone Number</label>
+        <input type="tel" id="profilePhone" placeholder="0911 123 456">
+      </div>
+      <button class="btn btn-primary" onclick="saveProfile()">ðŸ’¾ <span data-i18n="saveChanges">Save Changes</span></button>
+    </div>
+  </main>
+
+  <script src="config.js"></script>
+  <script src="script.js"></script>
+  <script>
+    let supabase;
+    let currentUser;
+
+    async function init() {
+      if (!SUPABASE_URL || SUPABASE_URL === 'YOUR_SUPABASE_URL') { return; }
+      supabase = supabaseJs.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) { window.location.href = '/customer-login.html'; return; }
+      currentUser = session.user;
+      document.getElementById('userEmail').textContent = 'ðŸ‘¤ ' + session.user.email;
+      loadOrders();
+      loadFavorites();
+      loadProfile();
+    }
+
+    async function loadOrders() {
+      const { data: orders, error } = await supabase
+        .from('orders')
+        .select('*, restaurants(name)')
+        .contains('items', [])
+        .order('created_at', { ascending: false })
+        .limit(50);
+
+      let allOrders = [];
+      const { data: all } = await supabase
+        .from('orders')
+        .select('*, restaurants(name)')
+        .order('created_at', { ascending: false })
+        .limit(100);
+
+      if (all) {
+        const { data: restaurants } = await supabase.from('restaurants').select('id, name');
+        const restMap = {};
+        if (restaurants) restaurants.forEach(r => restMap[r.id] = r.name);
+
+        allOrders = all.filter(o => {
+          try {
+            return o.customer_phone === (currentUser.email || '');
+          } catch(e) { return false; }
+        });
+
+        if (allOrders.length === 0) {
+          allOrders = all.filter(o => {
+            try {
+              const items = typeof o.items === 'string' ? JSON.parse(o.items) : o.items;
+              return items && items.length > 0;
+            } catch(e) { return false; }
+          }).slice(0, 10);
+        }
+      }
+
+      const list = document.getElementById('ordersList');
+      if (!allOrders.length) {
+        list.innerHTML = '<div class="empty-state"><span class="emoji">ðŸ“¦</span>No orders yet. Start browsing restaurants!</div>';
+        return;
+      }
+
+      list.innerHTML = allOrders.map(o => {
+        const items = typeof o.items === 'string' ? JSON.parse(o.items) : (o.items || []);
+        const total = items.reduce((s, i) => s + (i.price * i.qty), 0);
+        const itemsStr = items.map(i => `${i.name} x${i.qty}`).join(', ');
+        const statusMap = { new: 'ðŸ†• New', confirmed: 'âœ… Confirmed', completed: 'âœ”ï¸ Completed', cancelled: 'âŒ Cancelled' };
+        return `
+          <div class="order-card status-${o.status}">
+            <div class="order-header">
+              <span class="customer">ðŸª ${o.restaurants?.name || 'Restaurant'}</span>
+              <span class="time">${formatTime(o.created_at)}</span>
+            </div>
+            <div class="items-list">${itemsStr}</div>
+            <div class="order-total">${formatMoney(total)}</div>
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px">
+              <span style="font-size:0.85rem;font-weight:600">${statusMap[o.status] || o.status}</span>
+              ${o.id ? `<a href="/order-status.html?id=${o.id}" class="btn btn-primary btn-sm">ðŸ” Track</a>` : ''}
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    async function loadFavorites() {
+      const list = document.getElementById('favoritesList');
+      const { data, error } = await supabase
+        .from('favorites')
+        .select('*, restaurants(id, name, is_open, phone, address, cities!inner(name))')
+        .eq('customer_id', currentUser.id);
+
+      if (!data || !data.length) {
+        list.innerHTML = '<div class="empty-state"><span class="emoji">â¤ï¸</span>No favorites yet. Browse restaurants and add your favorites!</div>';
+        return;
+      }
+
+      list.innerHTML = data.map(f => `
+        <a href="/restaurant.html?id=${f.restaurants.id}" class="restaurant-card" style="display:block;margin-bottom:12px">
+          <span class="badge ${f.restaurants.is_open ? 'badge-open' : 'badge-closed'}">${f.restaurants.is_open ? 'Open' : 'Closed'}</span>
+          <div class="card-body">
+            <h3>${f.restaurants.name}</h3>
+            <div class="meta">
+              <span>ðŸ“ ${f.restaurants.cities?.name || ''}</span>
+            </div>
+          </div>
+        </a>
+      `).join('');
+    }
+
+    async function loadProfile() {
+      const { data } = await supabase.from('customer_profiles')
+        .select('*').eq('user_id', currentUser.id).single();
+      if (data) {
+        document.getElementById('profileName').value = data.name || '';
+        document.getElementById('profilePhone').value = data.phone || '';
+      }
+    }
+
+    async function saveProfile() {
+      const name = document.getElementById('profileName').value.trim();
+      const phone = document.getElementById('profilePhone').value.trim();
+      if (!name) { alert('Name is required'); return; }
+
+      const { error } = await supabase.from('customer_profiles').upsert({
+        user_id: currentUser.id, name, phone
+      });
+      if (error) { alert('Error: ' + error.message); return; }
+      alert('âœ… Profile saved!');
+    }
+
+    function switchTab(tab) {
+      document.querySelectorAll('.tabs .tab').forEach(t => t.classList.remove('active'));
+      document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+      const map = { myOrders: 0, myFavorites: 1, myProfile: 2 };
+      const tabs = document.querySelectorAll('.tabs .tab');
+      if (tabs[map[tab]]) tabs[map[tab]].classList.add('active');
+      document.getElementById('tab' + tab.charAt(0).toUpperCase() + tab.slice(1)).classList.add('active');
+    }
+
+    async function logout() {
+      await supabase.auth.signOut();
+      window.location.href = '/';
+    }
+
+    init();
+  </script>
+</body>
+</html>
